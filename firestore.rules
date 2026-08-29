@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The Express backend uses the Admin SDK, which bypasses these rules entirely.
+    // These rules only govern direct access (e.g. if Unity ever tried to hit Firestore
+    // directly, which it shouldn't - it should always go through your API).
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
