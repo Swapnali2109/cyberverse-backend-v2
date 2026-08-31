@@ -1,6 +1,5 @@
 import { Router, Request, Response } from "express";
 import { db } from "../firebase";
-import { scenarios } from "../data/scenario1";
 import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
@@ -40,7 +39,6 @@ router.post("/start", async (req: Request, res: Response) => {
       startedAt: new Date(),
       finishedAt: null,
       currentScenarioId: FIRST_SCENARIO_ID,
-      currentNodeId: scenarios[FIRST_SCENARIO_ID].startNode,
       scores: initialScores,
     });
 

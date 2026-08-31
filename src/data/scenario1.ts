@@ -208,30 +208,6 @@ export const scenario1: DialogueScenario = {
   },
 };
 
-export const scenarios: Record<string, DialogueScenario> = {
-  [scenario1.id]: scenario1,
-  // Add scenario_2, scenario_3 here later, following the exact same shape.
-};
-
-export function getNode(scenarioId: string, nodeId: string): DialogueNode | undefined {
-  return scenarios[scenarioId]?.nodes[nodeId];
-}
-
-export function getChoice(
-  scenarioId: string,
-  nodeId: string,
-  choiceId: string
-): DialogueChoice | undefined {
-  return getNode(scenarioId, nodeId)?.choices.find((c) => c.id === choiceId);
-}
-
-// Strips the "next" field before sending a node to Unity - the client should
-// never see or rely on where a choice leads, only the server decides that.
-export function serializeNodeForClient(node: DialogueNode) {
-  return {
-    node_id: node.id,
-    speaker: node.speaker,
-    lines: node.lines,
-    choices: node.choices.map((c) => ({ id: c.id, label: c.label })),
-  };
-}
+// registry (scenarios map, getNode, getChoice) now lives in ./registry.ts
+// so scenario2.ts and future scenario files can be combined without a
+// circular import back into this file.

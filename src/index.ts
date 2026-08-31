@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import sessionRoutes from "./routes/session";
-import dialogueRoutes from "./routes/dialogue";
+import decisionRoutes from "./routes/decision";
 import playerRoutes from "./routes/player";
 
 dotenv.config();
@@ -19,7 +19,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/session", sessionRoutes);
-app.use("/api/dialogue", dialogueRoutes);
+app.use("/api/decision", decisionRoutes);
 app.use("/api/player", playerRoutes);
 
 app.listen(PORT, () => {
