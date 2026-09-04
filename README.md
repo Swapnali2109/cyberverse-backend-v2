@@ -1,73 +1,108 @@
-# Cyberverse Backend v3 (Unity owns dialogue, backend just scores)
+# Cyberverse Backend v4 (Scene 3 remediation + full report screen)
 
-Chirayu's Unity build already has all dialogue, scenario flow, and UI hardcoded
-client-side. This backend no longer manages "what comes next" - it only
-receives a choice, scores it, and logs it. Much simpler contract than v2.
+Adds:
+1. Scene 3 Part 1 (phishing recovery) - `scenario_3a_phishing_recovery`
+2. Scene 3 Part 2 (tailgating recovery) - `scenario_3b_tailgating_recovery`
+3. A fully fleshed out `/api/session/:id/result` response matching the
+   final report screen mockup exactly - rating, skill bars, key moments,
+   "what you learned," and which Scene 3 branch(es) to route to.
 
 ## Setup
 
-Same as before - Firebase project, Firestore enabled, `.env` filled in with
-your service account credentials, `npm install`, `npm run dev`.
+Same as before - copy your working `.env` over, `npm install`, `npm run dev`.
 
-## Endpoints
+## Scene 3 routing logic
 
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/api/session/start` | Starts a playthrough. Accepts optional `player_id`; returns one either way |
-| POST | `/api/decision` | Submits ONE clicked choice, returns scoring feedback |
-| GET | `/api/session/:id/result` | Final report for ONE playthrough |
-| GET | `/api/player/:playerId/history` | ALL playthroughs for one player, with improvement trend |
+`GET /api/session/:id/result` now includes:
 
-## POST /api/decision - the core endpoint now
-
-Unity calls this every time the player clicks a choice, anywhere in any
-scenario. `node_id` here is NOT about controlling flow - it's just a lookup
-key identifying which question/moment this choice belongs to (matches
-whatever Unity already has hardcoded for that beat).
-
-**Request:**
 ```json
 {
-  "session_id": "abc123",
-  "scenario_id": "scenario_1_the_big_day",
-  "node_id": "node_email",
-  "choice_id": "phishing_reported"
+  "failed_scenario_1": true,
+  "failed_scenario_2": false,
+  "remediation_scenarios": ["scenario_3a_phishing_recovery"]
 }
 ```
 
-**Response:**
+Call this after Scenario 1 + 2 are both done, before deciding what to load
+next:
+- `remediation_scenarios` empty -> player passed both, skip Scene 3 entirely
+  (or route to whatever "success" content the team decides on)
+- Contains `scenario_3a_phishing_recovery` -> load Scene 3 Part 1
+- Contains `scenario_3b_tailgating_recovery` -> load Scene 3 Part 2
+- Contains both -> load both, in whatever order makes sense narratively
+
+"Failed" = the player made at least one `isSafe: false` decision anywhere in
+that scenario. This is computed fresh every time from the full decision
+history - no separate flag to keep in sync.
+
+## The full report screen - one call now covers everything
+
+`GET /api/session/:id/result` response shape:
+
 ```json
 {
-  "is_safe": true,
-  "category": "phishing",
-  "points_awarded": 15,
-  "new_category_score": 65,
-  "feedback": "DING DING DING! ..."
+  "session_id": "...",
+  "player_id": "...",
+
+  "overall_score": 78,
+  "rating": "GOOD SECURITY AWARENESS",
+  "headline": "KEEP IT UP!",
+  "message": "Your choices show strong cybersecurity awareness. Remember: STOP -> CHECK -> VERIFY -> ACT.",
+
+  "scores": { "phishing": 85, "social_engineering": 70, "privacy": 90, "device_security": 60, "password_security": 80 },
+  "skills": [
+    { "category": "phishing", "label": "Phishing", "value": 85 },
+    { "category": "social_engineering", "label": "Social Engineering", "value": 70 }
+  ],
+
+  "strongest_area": "privacy",
+  "strongest_area_label": "Privacy",
+  "weakest_area": "device_security",
+  "weakest_area_label": "Device Security",
+
+  "what_you_learned": [
+    "Verify unexpected requests before clicking links or replying",
+    "Never share sensitive personal information casually"
+  ],
+
+  "key_moments": [
+    { "title": "Suspicious Email", "action_taken": "Click the 'Report Phishing' Button", "is_safe": true, "points": 15 },
+    { "title": "Unknown Person at Door", "action_taken": "Let the visitor follow you through the secured door", "is_safe": false, "points": -15 }
+  ],
+
+  "decisions": [ "...full history, unchanged from before..." ],
+
+  "failed_scenario_1": false,
+  "failed_scenario_2": true,
+  "remediation_scenarios": ["scenario_3b_tailgating_recovery"]
 }
 ```
 
-`feedback` is included in case it's useful, but Unity's own dialogue already
-covers this - safe to ignore this field entirely if Unity doesn't need it.
+Every visual element in the mockup maps directly to a field here - Unity's
+job is purely rendering, no calculation needed on their end.
 
-## The valid node_id / choice_id pairs (the scoring table)
+### Where each field comes from
 
-This lives in `src/data/scenario1.ts` - every node_id and choice_id Unity
-sends MUST match one of the entries there exactly, or the request gets a
-404. Share this file (or just the id strings) with Chirayu so his button
-click handlers send the exact matching ids.
+| Report screen element | Field |
+|---|---|
+| Big score number | `overall_score` |
+| Rating text under it | `rating` |
+| Skill bars | `skills` (already sorted-friendly, has display `label`) |
+| Strongest/weakest cards | `strongest_area_label` / `weakest_area_label` |
+| "What you learned" checklist | `what_you_learned` |
+| "Key moments" (2-3 shown) | `key_moments` - already picks the 3 most impactful decisions, pre-sorted |
+| Bottom message + "Keep it up" / "Keep learning" | `headline` + `message` |
 
-## Adding Scenarios 2 and 3
+## Adding Scenario 3's real branching dialogue later
 
-Copy the pattern in `src/data/scenario1.ts` into `scenario2.ts`, keep the
-same rubric (Ideal +15 / Cautious +8 / Neutral 0 / Risky -10 to -15), add it
-to the `scenarios` export. The `lines` and dialogue-flow fields in that file
-are no longer used by the backend (Unity owns that now) - only `id`,
-`category`, `points`, `isSafe` and optionally `feedback` actually matter.
+The current `scenario3a.ts` / `scenario3b.ts` files consolidate the script's
+free-form "assessment events" into a smaller set of scored decision points
+(to avoid double-counting when multiple events fire from one action - see
+comments in each file for exactly which events map to which choice). If
+Aryan's script changes meaningfully, update these two files the same way
+Scenario 1/2 were built.
 
-## Testing without Unity (Postman)
-
-1. `POST /api/session/start` with `{}` -> copy `session_id`
-2. `POST /api/decision` with a valid node_id/choice_id pair -> see scoring response
-3. Repeat for as many choices as you want to test
-4. `GET /api/session/{id}/result` -> final scores
-5. `GET /api/player/{player_id}/history` -> cross-session history
+**One item flagged for confirmation**: `scenario3a.ts`'s
+`sent_without_verifying` choice ID was inferred (the script didn't name an
+explicit assessment event for "sent to personal email without verifying") -
+confirm this with Aryan/Chirayu before relying on it.
